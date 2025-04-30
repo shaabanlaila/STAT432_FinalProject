@@ -1,0 +1,90 @@
+---
+title: "STAT432_FinalProject"
+output: html_document
+date: "2025-04-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# packages
+library(dplyr)
+library(tidyverse)
+library(randomForest)
+library(nnet)
+library(e1071)
+```
+
+# Importing Data
+
+```{r}
+# importing data
+data <- read.csv("output.csv")
+
+# adding majority vote column
+data$highest_party <- apply(data[, c("DEMOCRAT", "REPUBLICAN")], 1, function(row) {
+  if (all(is.na(row))) {
+    NA  # or "Unknown", if you prefer
+  } else {
+    parties <- c("Democratic", "Republican")
+    parties[which.max(row)]
+  }
+})
+
+data$highest_party <- as.factor(data$highest_party)
+data$highest_party <- ifelse(data$highest_party == "Republican", 1, 0)
+
+
+# adding total turnout column
+data$total_turnout <- data$DEMOCRAT + data$REPUBLICAN + data$OTHER
+
+data$dem_pct <- data$DEMOCRAT/data$total_turnout
+data$rep_pct <- data$REPUBLICAN/data$total_turnout
+data$oth_pct <- data$OTHER/data$total_turnout
+data <- na.omit(data)
+head(data)
+```
+
+# Model 1 - Logistic Regression (Default)
+
+```{r}
+model1 <- glm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data)
+summary(model1)
+```
+
+## Analysis
+
+```{r}
+
+```
+
+# Model 2 - Logistic Regression (Poisson)
+
+```{r}
+model2 <- glm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, family = poisson)
+summary(model2)
+```
+
+# Model 3 - Random Forest
+
+```{r}
+data$highest_party <- as.factor(data$highest_party)
+
+random_forest_model <- randomForest(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, ntree = 500, importance = TRUE)
+print(random_forest_model)
+```
+
+# Model 4 - Support Vector Machine
+
+```{r}
+svm_fit <- svm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, kernel = "linear", scale = FALSE)
+summary(svm_fit)
+```
+
+```{r}
+svm_pred <- predict(svm_fit, data)
+confusion <- confusionMatrix(svm_pred, data$highest_party)
+print(confusion)
+```
