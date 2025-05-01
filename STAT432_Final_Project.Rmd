@@ -8,16 +8,19 @@ date: "2025-04-29"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Initialization
+
 ```{r}
 # packages
 library(dplyr)
 library(tidyverse)
 library(randomForest)
 library(nnet)
+library(caret)
 library(e1071)
 ```
 
-# Importing Data
+# Importing and Processing Data
 
 ```{r}
 # importing data
@@ -33,7 +36,6 @@ data$highest_party <- apply(data[, c("DEMOCRAT", "REPUBLICAN")], 1, function(row
   }
 })
 
-data$highest_party <- as.factor(data$highest_party)
 data$highest_party <- ifelse(data$highest_party == "Republican", 1, 0)
 
 
@@ -47,10 +49,14 @@ data <- na.omit(data)
 head(data)
 ```
 
-# Model 1 - Logistic Regression (Default)
+# Model 1 - Logistic Regression
 
 ```{r}
-model1 <- glm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data)
+# full model
+log_model <- glm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, family = binomial())
+
+# backward stepwise
+model1 <- step(log_model, direction = "backward", k = 2, trace = F)
 summary(model1)
 ```
 
@@ -60,11 +66,27 @@ summary(model1)
 
 ```
 
-# Model 2 - Logistic Regression (Poisson)
+# Model 2 - KMeans Clustering (w/ PCA Visualization)
 
 ```{r}
-model2 <- glm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, family = poisson)
-summary(model2)
+### building model
+clustering_data <- data[, c("dem_pct", "rep_pct", "oth_pct")]
+clustering_data_scaled <- scale(clustering_data)
+
+# kmeans clustering
+kmeans_model <- kmeans(clustering_data_scaled, centers = 2, nstart = 25)
+data$cluster <- kmeans_model$cluster
+
+# confusion matrix: cluster predicted labels x highest_party true labels
+table(data$cluster, data$highest_party)
+
+### visualization
+x <- prcomp(scale(data[, c("dem_pct", "rep_pct", "oth_pct")]))$x[, 1:2]
+sim_kmeans2 <- kmeans(x, 2)
+
+# Plot with cluster colors
+plot(x, col = ifelse(sim_kmeans2$cluster == 1, "darkorange", "darkblue"),
+     main = "K-Means with K = 2", xlab = "", ylab = "", pch = 19)
 ```
 
 # Model 3 - Random Forest
@@ -79,7 +101,7 @@ print(random_forest_model)
 # Model 4 - Support Vector Machine
 
 ```{r}
-svm_fit <- svm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, kernel = "linear", scale = FALSE)
+svm_fit <- svm(highest_party ~ . - FIPS - STATE - ST_ABBR - COUNTY - LOCATION - POPCHANGE - dem_pct - oth_pct - rep_pct - DEMOCRAT - OTHER - REPUBLICAN - total_turnout - Male_percentage_estimate, data = data, kernel = "radial", scale = FALSE) # use radial kernel because data is not linearly separable
 summary(svm_fit)
 ```
 
