@@ -18,6 +18,7 @@ library(randomForest)
 library(nnet)
 library(caret)
 library(e1071)
+library(class)
 ```
 
 # Importing and Processing Data
@@ -66,27 +67,27 @@ summary(model1)
 
 ```
 
-# Model 2 - KMeans Clustering (w/ PCA Visualization)
+# Model 2 - K-Nearest Neighbors (KNN)
 
 ```{r}
+### preprocessing
+train_idx <- sample(1:nrow(data), 0.8 * nrow(data))
+train_data <- data[train_idx, ]
+test_data <- data[-train_idx, ]
+y_train <- train_data$highest_party
+y_test <- test_data$highest_party
+X_train <- train_data[, -which(names(train_data) == "highest_party")]
+X_test <- test_data[, -which(names(test_data) == "highest_party")]
+X_train <- data.frame(lapply(X_train, function(x) as.numeric(as.factor(x))))
+X_test <- data.frame(lapply(X_test, function(x) as.numeric(as.factor(x))))
+
 ### building model
-clustering_data <- data[, c("dem_pct", "rep_pct", "oth_pct")]
-clustering_data_scaled <- scale(clustering_data)
+knn_fit <- knn(train = X_train, test = X_test, cl = y_train, k = 5)
 
-# kmeans clustering
-kmeans_model <- kmeans(clustering_data_scaled, centers = 2, nstart = 25)
-data$cluster <- kmeans_model$cluster
-
-# confusion matrix: cluster predicted labels x highest_party true labels
-table(data$cluster, data$highest_party)
-
-### visualization
-x <- prcomp(scale(data[, c("dem_pct", "rep_pct", "oth_pct")]))$x[, 1:2]
-sim_kmeans2 <- kmeans(x, 2)
-
-# Plot with cluster colors
-plot(x, col = ifelse(sim_kmeans2$cluster == 1, "darkorange", "darkblue"),
-     main = "K-Means with K = 2", xlab = "", ylab = "", pch = 19)
+# confusion matrix
+table(Predicted = knn_fit, Actual = y_test)
+accuracy <- sum(knn_fit == y_test) / length(y_test)
+cat("Accuracy:", accuracy)
 ```
 
 # Model 3 - Random Forest
